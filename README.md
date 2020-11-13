@@ -42,6 +42,8 @@ Create a catkin_ws directory with a src subdir.
 Do a `git clone https://github.com/frederico-klein/freenect_loopback_webcam.git`
 
 Compile it with a `catkin_make`.   
+
+Now source it `source devel/setup.bash `.
   
 ## Running
 
