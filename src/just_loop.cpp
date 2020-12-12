@@ -18,7 +18,9 @@
 #endif
 
 //#define VIDEO_IN  "/dev/video0"
-#define VIDEO_OUT "/dev/video0"
+//#define VIDEO_OUT "/dev/video0"
+
+std::string default_param_video_out;
 
 cv_bridge::CvImagePtr cv_ptr;
 
@@ -37,6 +39,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg)
 
     // write frame to output device
     size_t written = write(output, result.data, framesize);
+    //size_t written = write(output, cv_ptr->image.data, framesize);
     if (written < 0) {
         std::cerr << "ERROR: could not write to output device!\n";
         close(output);
@@ -51,17 +54,19 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg)
 int
 main(int argc, char* argv[]) {
 
+    ros::init(argc, argv, "image_listener");
+    ros::NodeHandle nh;
+    image_transport::ImageTransport it(nh);
+    nh.param<std::string>("video_out", default_param_video_out, "/dev/video0");
+    image_transport::Subscriber sub = it.subscribe("image_in", 1, imageCallback);
+
     //opoening video output
-    output = open(VIDEO_OUT, O_RDWR);
+    output = open(default_param_video_out.c_str(), O_RDWR);
     if(output < 0) {
         std::cerr << "ERROR: could not open output device!\n" <<
         strerror(errno); return -2;
     }
 
-    ros::init(argc, argv, "image_listener");
-    ros::NodeHandle nh;
-    image_transport::ImageTransport it(nh);
-    image_transport::Subscriber sub = it.subscribe("/camera/rgb/image_raw", 1, imageCallback);
 
     // configure params for output device
     struct v4l2_format vid_format;
@@ -88,9 +93,38 @@ main(int argc, char* argv[]) {
     // - V4L2_PIX_FMT_MJPEG,
     // - V4L2_PIX_FMT_JPEG
     vid_format.fmt.pix.pixelformat = V4L2_PIX_FMT_RGB24;
+    //if I do this I can have other people handle the conversion for me.
 
-    vid_format.fmt.pix.sizeimage = framesize;
+    //vid_format.fmt.pix.pixelformat = V4L2_PIX_FMT_BGR24;
+    //vid_format.fmt.pix.pixelformat = V4L2_PIX_FMT_XBGR32;
+
+
     vid_format.fmt.pix.field = V4L2_FIELD_NONE;
+
+    //so i forgot some stuff and maybe zoom is complaing about this
+    //https://www.kernel.org/doc/html/v4.10/media/uapi/v4l/pixfmt-002.html#c.v4l2_pix_format
+    vid_format.fmt.pix.bytesperline = 640;
+    vid_format.fmt.pix.sizeimage = framesize;
+    vid_format.fmt.pix.colorspace = V4L2_COLORSPACE_DEFAULT;
+    //vid_format.fmt.pix.colorspace = V4L2_COLORSPACE_SRGB; //since we are emulating a webcam...
+    //vid_format.fmt.pix.colorspace = V4L2_COLORSPACE_REC709;
+    //vid_format.fmt.pix.colorspace = V4L2_COLORSPACE_RAW;
+    // vid_format.fmt.pix.priv = ;
+    // vid_format.fmt.pix.flags = ;
+    // vid_format.fmt.pix.ycvcr_enc = V4L2_YCBCR_ENC_DEFAULT;
+    // vid_format.fmt.pix.hsv_enc = V4L2_HSV_ENC_180;
+    // vid_format.fmt.pix.hsv_enc = V4L2_HSV_ENC_256;
+    vid_format.fmt.pix.quantization = V4L2_QUANTIZATION_DEFAULT;
+    //vid_format.fmt.pix.quantization = V4L2_QUANTIZATION_FULL_RANGE;
+    //vid_format.fmt.pix.quantization = V4L2_QUANTIZATION_LIM_RANGE;
+    vid_format.fmt.pix.xfer_func = V4L2_XFER_FUNC_DEFAULT;
+    //vid_format.fmt.pix.xfer_func = V4L2_XFER_FUNC_709;
+    //vid_format.fmt.pix.xfer_func = V4L2_XFER_FUNC_SRGB;
+    //vid_format.fmt.pix.xfer_func = V4L2_XFER_FUNC_ADOBERGB;
+    //vid_format.fmt.pix.xfer_func = V4L2_XFER_FUNC_SMPTE240M;
+    //vid_format.fmt.pix.xfer_func = V4L2_XFER_FUNC_NONE;
+    //vid_format.fmt.pix.xfer_func = V4L2_XFER_FUNC_DCI_P3;
+    //vid_format.fmt.pix.xfer_func = V4L2_XFER_FUNC_SMPTE2084;
 
     if (ioctl(output, VIDIOC_S_FMT, &vid_format) < 0) {
         std::cerr << "ERROR: unable to set video format!\n" <<
